@@ -1,6 +1,6 @@
 import os
-from keras.models import Sequential, Model
-from keras.layers import Dense, Lambda, Input, Concatenate
+from keras.models import Sequential
+from keras.layers import Dense, Input
 import tensorflow as tf
 from keras import backend as K
 
@@ -48,7 +48,7 @@ class Brain(object):
         #     Dense(self.num_nodes, activation='relu'),
         #     Dense(self.action_size, activation='linear')
         # })
-        #
+
         model.compile(loss=huber_loss, optimizer='rmsprop')
 
         if self.test:

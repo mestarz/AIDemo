@@ -1,14 +1,6 @@
-"""
-Created on Wednesday Jan  16 2019
-
-@author: Seyed Mohammad Asghari
-@github: https://github.com/s3yyy3d-m
-"""
-
 import os
 import numpy as np
 import pandas as pd
-import tensorflow as tf
 
 import configure
 from env.env import Env
@@ -101,14 +93,15 @@ class Environment(object):
                     df = pd.DataFrame(timesteps_list, columns=['steps'])
                     df.to_csv(file2)
 
-                    for agent in agents:
-                        agent.brain.save_model(str(episode_num))
+                    if episode_num % 1000 == 0:
+                        for agent in agents:
+                            agent.brain.save_model(str(episode_num))
 
-                    # if total_step >= self.filling_steps:
-                    #     if reward_all > max_score:
-                    #         for agent in agents:
-                    #             agent.brain.save_model()
-                    #         max_score = reward_all
+                    if total_step >= self.filling_steps:
+                        if reward_all > max_score:
+                            for agent in agents:
+                                agent.brain.save_model()
+                            max_score = reward_all
 
 
 if __name__ == "__main__":
