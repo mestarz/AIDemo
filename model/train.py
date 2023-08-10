@@ -5,8 +5,10 @@ Created on Wednesday Jan  16 2019
 @github: https://github.com/s3yyy3d-m
 """
 
+import os
 import numpy as np
 import pandas as pd
+import tensorflow as tf
 
 import configure
 from env.env import Env
@@ -18,15 +20,15 @@ ARG_LIST = ['learning_rate', 'optimizer', 'memory_capacity', 'batch_size', 'targ
 
 
 def get_name_brain(idx):
-    return './result/weights_files/' + '_' + str(idx) + '.h5'
+    return './result/weights/' + '_' + str(idx) + '.h5'
 
 
 def get_name_rewards():
-    return './result/rewards_files/' + '.csv'
+    return './result/rewards/' + '.csv'
 
 
 def get_name_timesteps():
-    return './result/timesteps_files/' + '.csv'
+    return './result/timesteps/' + '.csv'
 
 
 class Environment(object):
@@ -99,15 +101,19 @@ class Environment(object):
                     df = pd.DataFrame(timesteps_list, columns=['steps'])
                     df.to_csv(file2)
 
-                    if total_step >= self.filling_steps:
-                        if reward_all > max_score:
-                            for agent in agents:
-                                agent.brain.save_model()
-                            max_score = reward_all
+                    for agent in agents:
+                        agent.brain.save_model(str(episode_num))
+
+                    # if total_step >= self.filling_steps:
+                    #     if reward_all > max_score:
+                    #         for agent in agents:
+                    #             agent.brain.save_model()
+                    #         max_score = reward_all
 
 
 if __name__ == "__main__":
     # DQN Parameters
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # 0: INFO, 1: WARNING, 2: ERROR, 3: FATAL
 
     env = Environment()
     state_size = env.env.state_size

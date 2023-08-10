@@ -75,5 +75,5 @@ class Brain(object):
     def update_target_model(self):
         self.model_.set_weights(self.model.get_weights())
 
-    def save_model(self):
-        self.model.save(self.weight_backup)
+    def save_model(self, prefix):
+        self.model.save(prefix + self.weight_backup)
