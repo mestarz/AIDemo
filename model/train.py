@@ -11,8 +11,8 @@ ARG_LIST = ['learning_rate', 'optimizer', 'memory_capacity', 'batch_size', 'targ
             'prioritization_scale', 'dueling', 'agents_number', 'grid_size', 'game_mode', 'reward_mode']
 
 
-def get_name_brain(idx):
-    return './result/' + '_' + str(idx) + '.h5'
+def get_name_brain():
+    return './result/' + '_' + '.h5'
 
 
 def get_name_rewards():
@@ -36,19 +36,20 @@ class Environment(object):
         self.num_agents = configure.AGENTS_NUMBER
         self.num_landmarks = self.num_agents
 
-    def run(self, agents, file1, file2):
+    def run(self, agent, file1, file2):
 
         total_step = 0
         rewards_list = []
         timesteps_list = []
         max_score = -10000
+        states = []
         for episode_num in range(self.episodes_number):
             self.env.reset()
 
             # converting list of positions to an array
-            for a in agents:
-                state = self.env.map.get_state(a.bee_index)
-                a.state = np.array(state).ravel()
+            for i in range(configure.AGENTS_NUMBER):
+                s = self.env.map.get_state(i)
+                states.append(np.array(s).ravel())
 
             done = False
             reward_all = 0
@@ -60,17 +61,18 @@ class Environment(object):
                     env.env.map.tracks.clear()
                     env.env.map.update()
 
-                for agent in agents:
-                    action = agent.greedy_actor(agent.state)
-                    next_state, reward, done = self.env.step((agent.bee_index, k + 1, action))
-                    agent.next_state = np.array(next_state).ravel()
+                for i in range(configure.AGENTS_NUMBER):
+                    action = agent.greedy_actor(states[i])
+                    next_state, reward, done = self.env.step((i, k + 1, action))
+                    next_state = np.array(next_state).ravel()
 
                     if not self.test:
-                        agent.observe((agent.state, action, reward, agent.next_state, done))
+                        agent.observe((states[i], action, reward, next_state, done))
                         if time_step % self.steps_b_updates == 0:
                             agent.replay()
                         agent.update_target_model()
 
+                    states[i] = next_state
                     reward_all += reward
 
                 # print(len(self.env.map.camps2))
@@ -94,14 +96,11 @@ class Environment(object):
                     df.to_csv(file2)
 
                     if episode_num % 1000 == 0:
-                        for agent in agents:
-                            agent.brain.save_model(str(episode_num))
+                        agent.brain.save_model(str(episode_num))
 
                     if total_step >= self.filling_steps:
-                        if reward_all > max_score:
-                            for agent in agents:
-                                agent.brain.save_model(str(episode_num))
-                            max_score = reward_all
+                        agent.brain.save_model("bast")
+                        max_score = reward_all
 
 
 if __name__ == "__main__":
@@ -112,12 +111,10 @@ if __name__ == "__main__":
     state_size = env.env.state_size
     action_space = env.env.action_space
 
-    all_agents = []
-    for b_idx in range(configure.AGENTS_NUMBER):
-        brain_file = get_name_brain(b_idx)
-        all_agents.append(Agent(state_size, action_space, b_idx, brain_file))
+    brain_file = get_name_brain()
+    agent = Agent(state_size, action_space, brain_file)
 
     rewards_file = get_name_rewards()
     timesteps_file = get_name_timesteps()
 
-    env.run(all_agents, rewards_file, timesteps_file)
+    env.run(agent, rewards_file, timesteps_file)

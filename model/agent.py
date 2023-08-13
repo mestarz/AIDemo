@@ -23,10 +23,9 @@ class Agent(object):
     epsilon = MAX_EPSILON
     beta = MIN_BETA
 
-    def __init__(self, state_size, action_size, bee_index, brain_name, test=False):
+    def __init__(self, state_size, action_size, brain_name, test=False):
         self.state_size = state_size
         self.action_size = action_size
-        self.bee_index = bee_index
         self.learning_rate = configure.LEARNING_RATE
         self.gamma = 0.95
         self.brain = Brain(self.state_size, self.action_size, brain_name, test)
@@ -36,8 +35,6 @@ class Agent(object):
         self.batch_size = configure.BATCH_SIZE
         self.step = 0
         self.test = test
-        self.state = None
-        self.next_state = None
         if self.test:
             self.epsilon = MIN_EPSILON
 
