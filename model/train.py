@@ -12,7 +12,7 @@ ARG_LIST = ['learning_rate', 'optimizer', 'memory_capacity', 'batch_size', 'targ
 
 
 def get_name_brain():
-    return './result/' + '_' + '.h5'
+    return "brain.h5"
 
 
 def get_name_rewards():
@@ -75,8 +75,8 @@ class Environment(object):
                     states[i] = next_state
                     reward_all += reward
 
-                # print(len(self.env.map.camps2))
-                # self.env.map.out()
+                print(len(self.env.map.camps2))
+                self.env.map.out()
 
                 total_step += 1
                 time_step += 1
