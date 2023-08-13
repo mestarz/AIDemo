@@ -36,14 +36,20 @@ class Agent(object):
         self.batch_size = configure.BATCH_SIZE
         self.step = 0
         self.test = test
+        self.state = None
+        self.next_state = None
         if self.test:
             self.epsilon = MIN_EPSILON
 
     def greedy_actor(self, state):
+        # 屏蔽掉无效移动
+        valid_move = state[5:14]
         if np.random.rand() <= self.epsilon:
-            return random.randrange(self.action_size)
+            res = [random.random() for _ in range(len(valid_move))]
         else:
-            return np.argmax(self.brain.predict_one_sample(state))
+            # 去掉无效的
+            res = self.brain.predict_one_sample(state)
+        return np.argmax([res[i] * valid_move[i] for i in range(len(valid_move))])
 
     def find_targets_uer(self, batch):
         batch_len = len(batch)
@@ -61,7 +67,7 @@ class Agent(object):
         for i in range(batch_len):
             o = batch[i]
             s = o[0]
-            a = o[1][self.bee_index]
+            a = o[1]
             r = o[2]
             done = o[4]
 

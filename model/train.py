@@ -12,15 +12,15 @@ ARG_LIST = ['learning_rate', 'optimizer', 'memory_capacity', 'batch_size', 'targ
 
 
 def get_name_brain(idx):
-    return './result/weights/' + '_' + str(idx) + '.h5'
+    return './result/' + '_' + str(idx) + '.h5'
 
 
 def get_name_rewards():
-    return './result/rewards/' + '.csv'
+    return './result/' + 'reward.csv'
 
 
 def get_name_timesteps():
-    return './result/timesteps/' + '.csv'
+    return './result/' + 'timesteps.csv'
 
 
 class Environment(object):
@@ -43,41 +43,41 @@ class Environment(object):
         timesteps_list = []
         max_score = -10000
         for episode_num in range(self.episodes_number):
-            state = self.env.reset()
+            self.env.reset()
 
             # converting list of positions to an array
-            state = np.array(state)
-            state = state.ravel()
+            for a in agents:
+                state = self.env.map.get_state(a.bee_index)
+                a.state = np.array(state).ravel()
 
             done = False
             reward_all = 0
             time_step = 0
             while not done and time_step < self.max_ts:
 
-                if time_step % 10 == 0:
+                k = time_step % configure.STEP
+                if k == 0:
                     env.env.map.tracks.clear()
+                    env.env.map.update()
 
-                actions = []
                 for agent in agents:
-                    actions.append(agent.greedy_actor(state))
-                next_state, reward, done = self.env.step(actions)
-                # converting list of positions to an array
-                next_state = np.array(next_state)
-                next_state = next_state.ravel()
+                    action = agent.greedy_actor(agent.state)
+                    next_state, reward, done = self.env.step((agent.bee_index, k + 1, action))
+                    agent.next_state = np.array(next_state).ravel()
 
-                if not self.test:
-                    for agent in agents:
-                        agent.observe((state, actions, reward, next_state, done))
-                        if total_step >= self.filling_steps:
-                            agent.decay_epsilon()
-                            if time_step % self.steps_b_updates == 0:
-                                agent.replay()
-                            agent.update_target_model()
+                    if not self.test:
+                        agent.observe((agent.state, action, reward, agent.next_state, done))
+                        if time_step % self.steps_b_updates == 0:
+                            agent.replay()
+                        agent.update_target_model()
+
+                    reward_all += reward
+
+                # print(len(self.env.map.camps2))
+                # self.env.map.out()
 
                 total_step += 1
                 time_step += 1
-                state = next_state
-                reward_all += reward
 
             rewards_list.append(reward_all)
             timesteps_list.append(time_step)
@@ -100,7 +100,7 @@ class Environment(object):
                     if total_step >= self.filling_steps:
                         if reward_all > max_score:
                             for agent in agents:
-                                agent.brain.save_model()
+                                agent.brain.save_model(str(episode_num))
                             max_score = reward_all
 
 

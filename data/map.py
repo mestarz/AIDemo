@@ -30,8 +30,13 @@ CAMP1 = 1
 CAMP2 = 2
 BARRIER = 3
 TRACK = 4
+EMPTY = 5
 
 A_DIFF = [(0, 0), (0, 1), (1, 1), (1, 0), (1, -1), (0, -1), (-1, -1), (-1, 0), (-1, 1)]
+
+
+def inbound(x, y, size):
+    return 0 <= x < size and 0 <= y < size
 
 
 class Map(object):
@@ -42,7 +47,9 @@ class Map(object):
         self.max_barrier = int(self.size * self.size * 0.2)
         self.soldier_nums = configure.AGENTS_NUMBER
         self.max_tracks = 10 * self.soldier_nums
-        self.state_size = (self.soldier_nums * 2 + self.max_tracks + self.max_barrier) * 2
+        self.size = configure.GRID_SIZE
+        # [cx, cy], [size, size], k, [周围障碍], [视野地图]
+        self.state_size = 2 + 2 + 1 + 9 + configure.VIEW * configure.VIEW * 4
         self.action_space = len(A_DIFF)
         self.barriers = []
         self.camps1 = []
@@ -58,53 +65,36 @@ class Map(object):
         self.random_init()
         self.update()
 
-    def execute(self, cid, action):
-        code = []
-        c = self.find(cid)
+    # action [ cid, k, act ]
+    # 标号，第k步，动作
+    def execute(self, action):
+        code = 0
+        c = self.camps1[action[0]]
 
         if c is None:
-            return [INVALID]
+            return code
 
-        nx = c.x + A_DIFF[action][0]
-        ny = c.y + A_DIFF[action][1]
+        nx = c.x + A_DIFF[action[2]][0]
+        ny = c.y + A_DIFF[action[2]][1]
 
-        if action == STOP:
-            code.append(COMMON)
-        else:
-            if nx < 0 or nx >= self.size or ny < 0 or ny >= self.size:
-                code.append(HIT_WORLD)
-            else:
-                s = self.map[nx][ny]
-                if s == CAMP1 or s == TRACK:
-                    code.append(HIT_TEAM)
-                elif s == BARRIER:
-                    code.append(HIT_BARRIER)
-                elif s == CAMP2:
-                    code.append(SCORE)
-
-        if len(code) > 0:
+        if not inbound(nx, ny, self.size) or self.map[nx][ny] != NORMAL:
             nx = c.x
             ny = c.y
 
         if nx != c.x or ny != c.y:
-            self.map[c.x][c.y] = NORMAL
+            self.tracks.append((nx, ny))
+            self.map[c.x][c.y] = TRACK
             self.map[nx][ny] = CAMP1
             c.x = nx
             c.y = ny
 
-        need_update = False
         for c2 in self.camps2:
-            if abs(c2.x - c.x) <= 1 and abs(c2.y - c.y) <= 1:
+            if abs(c2.x - c.x) <= 1 and abs(c2.y - c.y) <= 1 and action[1] == configure.STEP:
                 c2.life = c2.life - c.atk
                 if c2.life <= 0:
-                    need_update = True
-                code.append(SCORE)
-
-        if need_update:
-            self.update()
-
-        if len(code) == 0:
-            code.append(COMMON)
+                    self.camps2.remove(c2)
+                    self.map[c2.x][c2.y] = NORMAL
+                code = code + 1
 
         return code
 
@@ -114,32 +104,34 @@ class Map(object):
                 return c
         return None
 
-    def get_state(self):
-        state = []
+    # [cx, cy], [size, size], k, [周围障碍], [视野地图]
+    # 2 + 2 + 1 + 9 + view * view * 4
+    def get_state(self, cid, start_p=(0, 0), end_p=(configure.GRID_SIZE, configure.GRID_SIZE)):
 
-        def col_camp(cs, max_len):
-            for c in cs:
-                state.append(c.x)
-                state.append(c.y)
-            max_len = max_len - len(cs)
-            for i in range(max_len):
-                state.append(-1)
-                state.append(-1)
+        c = self.camps1[cid]
+        # 添加k的占位0，使用时修改
+        state = [c.x - start_p[0], c.y - start_p[1], end_p[0] - start_p[0], end_p[1] - start_p[1], 0]
 
-        col_camp(self.camps1, self.soldier_nums)
-        col_camp(self.camps2, self.soldier_nums)
+        # 周围障碍
+        for i in range(len(A_DIFF)):
+            nx = c.x + A_DIFF[i][0]
+            ny = c.y + A_DIFF[i][1]
+            if inbound(nx, ny, self.size) and self.map[nx][ny] == NORMAL:
+                state.append(1)
+            elif i == 0:
+                state.append(1)
+            else:
+                state.append(0)
 
-        def col_poi(ps, max_len):
-            for p in ps:
-                state.append(p[0])
-                state.append(p[1])
-            max_len = max_len - len(ps)
-            for i in range(max_len):
-                state.append(-1)
-                state.append(-1)
-
-        col_poi(self.barriers, self.max_barrier)
-        col_poi(self.tracks, self.max_tracks)
+        # 视野地图
+        for i in range(-configure.VIEW, configure.VIEW):
+            for j in range(-configure.VIEW, configure.VIEW):
+                nx = c.x + i
+                ny = c.y + j
+                if not inbound(nx, ny, self.size):
+                    state.append(EMPTY)
+                else:
+                    state.append(self.map[nx][ny])
 
         return state
 
@@ -156,13 +148,6 @@ class Map(object):
         self.barriers = [cells[p] for p in positions_idx[self.soldier_nums * 2:]]
 
     def update(self):
-        for c in self.camps1:
-            if c.life <= 0:
-                self.camps1.remove(c)
-        for c in self.camps2:
-            if c.life <= 0:
-                self.camps2.remove(c)
-
         self.map = np.zeros((self.size, self.size))
 
         for c in self.camps1:
@@ -189,3 +174,5 @@ class Map(object):
                 elif k == TRACK:
                     print("+ ", end="")
             print()
+        print("----------------------------------")
+        print()

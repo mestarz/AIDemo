@@ -3,6 +3,7 @@ from keras.models import Sequential
 from keras.layers import Dense, Input
 import tensorflow as tf
 from keras import backend as K
+from keras import optimizers
 
 import configure
 
@@ -38,7 +39,6 @@ class Brain(object):
         model.add(Input(shape=(self.state_size,)))
         model.add(Dense(self.num_nodes, activation='relu'))
         model.add(Dense(self.num_nodes, activation='relu'))
-        model.add(Dense(self.num_nodes, activation='relu'))
         model.add(Dense(self.action_size, activation='sigmoid'))
 
         # model = Sequential({
@@ -48,8 +48,9 @@ class Brain(object):
         #     Dense(self.num_nodes, activation='relu'),
         #     Dense(self.action_size, activation='linear')
         # })
+        opter = optimizers.adam_v2.Adam(learning_rate=configure.LEARNING_RATE)
 
-        model.compile(loss=huber_loss, optimizer='rmsprop')
+        model.compile(loss=huber_loss, optimizer=opter)
 
         if self.test:
             if not os.path.isfile(self.weight_backup):
