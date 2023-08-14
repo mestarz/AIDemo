@@ -36,24 +36,19 @@ class Environment(object):
         self.num_agents = configure.AGENTS_NUMBER
         self.num_landmarks = self.num_agents
 
-    def run(self, agent, file1, file2):
+    def run(self, one_agent, file1, file2):
 
         total_step = 0
         rewards_list = []
         timesteps_list = []
         max_score = -10000
-        states = []
         for episode_num in range(self.episodes_number):
             self.env.reset()
-
-            # converting list of positions to an array
-            for i in range(configure.AGENTS_NUMBER):
-                s = self.env.map.get_state(i)
-                states.append(np.array(s).ravel())
-
+            state = self.env.map.get_state()
             done = False
             reward_all = 0
             time_step = 0
+
             while not done and time_step < self.max_ts:
 
                 k = time_step % configure.STEP
@@ -61,22 +56,20 @@ class Environment(object):
                     env.env.map.tracks.clear()
                     env.env.map.update()
 
-                for i in range(configure.AGENTS_NUMBER):
-                    action = agent.greedy_actor(states[i])
-                    next_state, reward, done = self.env.step((i, k + 1, action))
-                    next_state = np.array(next_state).ravel()
+                actions = one_agent.greedy_actor(state)
+                next_state, reward, done = self.env.step(actions)
 
-                    if not self.test:
-                        agent.observe((states[i], action, reward, next_state, done))
-                        if time_step % self.steps_b_updates == 0:
-                            agent.replay()
-                        agent.update_target_model()
+                if not self.test:
+                    one_agent.observe((state, actions, reward, next_state, done))
+                    if time_step % self.steps_b_updates == 0:
+                        one_agent.replay()
+                    one_agent.update_target_model()
 
-                    states[i] = next_state
-                    reward_all += reward
+                state = next_state
+                reward_all += reward
 
-                print(len(self.env.map.camps2))
-                self.env.map.out()
+                # print(len(self.env.map.camps2))
+                # self.env.map.out()
 
                 total_step += 1
                 time_step += 1
@@ -96,10 +89,10 @@ class Environment(object):
                     df.to_csv(file2)
 
                     if episode_num % 1000 == 0:
-                        agent.brain.save_model(str(episode_num))
+                        one_agent.brain.save_model(str(episode_num))
 
-                    if total_step >= self.filling_steps:
-                        agent.brain.save_model("bast")
+                    if total_step >= self.filling_steps and reward_all > max_score:
+                        one_agent.brain.save_model("bast")
                         max_score = reward_all
 
 

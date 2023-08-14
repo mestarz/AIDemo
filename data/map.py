@@ -43,13 +43,11 @@ class Map(object):
 
     def __init__(self):
         self.size = configure.GRID_SIZE
-        self.map = np.zeros((self.size, self.size))
+        self.map = np.zeros((self.size, self.size), dtype=int)
         self.max_barrier = int(self.size * self.size * 0.2)
         self.soldier_nums = configure.AGENTS_NUMBER
-        self.max_tracks = 10 * self.soldier_nums
         self.size = configure.GRID_SIZE
-        # [cx, cy], [size, size], k, [周围障碍], [视野地图]
-        self.state_size = 2 + 2 + 1 + 9 + configure.VIEW * configure.VIEW * 4
+        self.state_size = self.size * self.size * 5
         self.action_space = len(A_DIFF)
         self.barriers = []
         self.camps1 = []
@@ -60,7 +58,7 @@ class Map(object):
 
     def reset(self):
         data.soldier.COUNT_ID = 0
-        self.map = np.zeros((self.size, self.size))
+        self.map = np.zeros((self.size, self.size), dtype=int)
         self.tracks.clear()
         self.random_init()
         self.update()
@@ -104,36 +102,18 @@ class Map(object):
                 return c
         return None
 
-    # [cx, cy], [size, size], k, [周围障碍], [视野地图]
+    # [cx, cy], [tx, ty], k, [size, size], [周围障碍], [视野地图]
     # 2 + 2 + 1 + 9 + view * view * 4
-    def get_state(self, cid, start_p=(0, 0), end_p=(configure.GRID_SIZE, configure.GRID_SIZE)):
+    def get_state(self):
+        a = np.array(self.map, dtype=int)
+        cate = 5
+        one_hot_encoded_map = np.zeros((a.shape[0], a.shape[1], cate), dtype=int)
 
-        c = self.camps1[cid]
-        # 添加k的占位0，使用时修改
-        state = [c.x - start_p[0], c.y - start_p[1], end_p[0] - start_p[0], end_p[1] - start_p[1], 0]
-
-        # 周围障碍
-        for i in range(len(A_DIFF)):
-            nx = c.x + A_DIFF[i][0]
-            ny = c.y + A_DIFF[i][1]
-            if inbound(nx, ny, self.size) and self.map[nx][ny] == NORMAL:
-                state.append(1)
-            elif i == 0:
-                state.append(1)
-            else:
-                state.append(0)
-
-        # 视野地图
-        for i in range(-configure.VIEW, configure.VIEW):
-            for j in range(-configure.VIEW, configure.VIEW):
-                nx = c.x + i
-                ny = c.y + j
-                if not inbound(nx, ny, self.size):
-                    state.append(EMPTY)
-                else:
-                    state.append(self.map[nx][ny])
-
-        return state
+        for i in range(a.shape[0]):
+            for j in range(a.shape[1]):
+                category = a[i, j]
+                one_hot_encoded_map[i, j, category] = 1
+        return one_hot_encoded_map
 
     def random_init(self):
         cells = [(i, j) for i in range(0, self.size) for j in range(0, self.size)]

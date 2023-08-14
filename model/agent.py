@@ -40,13 +40,14 @@ class Agent(object):
 
     def greedy_actor(self, state):
         # 屏蔽掉无效移动
-        valid_move = state[5:14]
-        if np.random.rand() <= self.epsilon:
-            res = [random.random() for _ in range(len(valid_move))]
-        else:
-            # 去掉无效的
-            res = self.brain.predict_one_sample(state)
-        return np.argmax([res[i] * valid_move[i] for i in range(len(valid_move))])
+        res = self.brain.predict_one_sample(state)
+        actions = [np.argmax(res[i:i + 5]) for i in [0, 9, 18, 27, 36]]
+
+        if np.random.rand() < self.epsilon:
+            for i in range(len(actions)):
+                actions[i] = random.randint(0, 8)
+
+        return actions
 
     def find_targets_uer(self, batch):
         batch_len = len(batch)
@@ -57,9 +58,9 @@ class Agent(object):
         p = self.brain.predict(states)
         p_target_ = self.brain.predict(states_, target=True)
 
-        x = np.zeros((batch_len, self.state_size))
-        y = np.zeros((batch_len, self.action_size))
-        errors = np.zeros(batch_len)
+        x = np.zeros((batch_len, configure.GRID_SIZE, configure.GRID_SIZE, configure.STEP))
+        y = np.zeros((batch_len, self.action_size * configure.STEP))
+        errors = np.zeros((batch_len, configure.STEP))
 
         for i in range(batch_len):
             o = batch[i]
@@ -77,7 +78,8 @@ class Agent(object):
 
             x[i] = s
             y[i] = t
-            errors[i] = np.abs(t[a] - old_value)
+            for idx in range(configure.STEP):
+                errors[i][idx] = np.abs(t[a][idx] - old_value[idx])
 
         return [x, y]
 

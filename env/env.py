@@ -14,21 +14,18 @@ class Env(object):
     def reset(self):
         self.map.reset()
 
+    # len(actions) == 5
     # action [ cid, k, act ]
     # 标号，第k步，动作
-    def step(self, action):
-        code = self.map.execute(action) * 50
+    def step(self, actions):
+        code = 0
+        for i in range(len(actions)):
+            code = code + self.map.execute((0, i + 1, actions[i])) * 500
 
         if len(self.map.camps2) == 0:
-            return self.map.get_state(action[0]), code, True
+            return self.map.get_state(), code, True
 
-        count = 0
-        c1 = self.map.camps1[action[0]]
-        for c in self.map.camps2:
-            if abs(c.x - c1.x) > 1 or abs(c.y - c1.y) > 1:
-                count = count + 1
-
-        return self.map.get_state(action[0]), code - count, False
+        return self.map.get_state(), code, False
 
 
 if __name__ == "__main__":

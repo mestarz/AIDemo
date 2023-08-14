@@ -1,9 +1,10 @@
 import os
 from keras.models import Sequential
-from keras.layers import Dense, Input
+from keras.layers import Dense, Input, Conv2D, MaxPooling1D, MaxPooling2D, Flatten, LSTM
 import tensorflow as tf
 from keras import backend as K
 from keras import optimizers
+import numpy as np
 
 import configure
 
@@ -36,10 +37,13 @@ class Brain(object):
     def _build_model(self):
 
         model = Sequential()
-        model.add(Input(shape=(self.state_size,)))
-        model.add(Dense(self.num_nodes, activation='relu'))
-        model.add(Dense(self.num_nodes, activation='relu'))
-        model.add(Dense(self.action_size, activation='sigmoid'))
+        model.add(Input(shape=(configure.GRID_SIZE, configure.GRID_SIZE, configure.STEP)))
+        model.add(Conv2D(filters=32, kernel_size=3, activation='relu'))
+        model.add(MaxPooling2D(pool_size=2))
+        model.add(Conv2D(filters=64, kernel_size=3, activation='relu'))
+        model.add(MaxPooling2D(pool_size=2))
+        model.add(Flatten())
+        model.add(Dense(units=configure.STEP * self.action_size, activation='softmax'))
 
         # model = Sequential({
         #     Input(shape=(self.state_size,)),
@@ -48,10 +52,9 @@ class Brain(object):
         #     Dense(self.num_nodes, activation='relu'),
         #     Dense(self.action_size, activation='linear')
         # })
+
         opter = optimizers.adam_v2.Adam(learning_rate=configure.LEARNING_RATE)
-
         model.compile(loss=huber_loss, optimizer=opter)
-
         if self.test:
             if not os.path.isfile(self.weight_backup):
                 print('Error:no file')
@@ -71,7 +74,9 @@ class Brain(object):
             return self.model.predict(state)
 
     def predict_one_sample(self, state, target=False):
-        return self.predict(state.reshape(1, self.state_size), target=target).flatten()
+        state = np.expand_dims(state, axis=0)
+        # return self.predict(state.reshape(1, self.state_size), target=target).flatten()
+        return self.predict(state, target=target).flatten()
 
     def update_target_model(self):
         self.model_.set_weights(self.model.get_weights())
