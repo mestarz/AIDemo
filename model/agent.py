@@ -107,13 +107,6 @@ class Agent(object):
     def save_model(self, prefix):
         self.model.save(prefix + self.weight_backup)
 
-    def predict_actions(self, input_state):
-        if np.random.rand() < self.epsilon:
-            return [random.randint(0, 8) for _ in range(configure.STEP)]
-        else:
-            res = self.model.predict(input_state).flatten()
-            return [np.argmax(res[i * self.action_size:(i + 1) * self.action_size]) for i in range(configure.STEP)]
-
     def decay_epsilon(self):
         # slowly decrease Epsilon based on our experience
         self.step += 1
@@ -132,6 +125,11 @@ class Agent(object):
 
     def observe(self, current_state, action, reward):
         self.memory.append((current_state, action, reward))
+
+    def predict(self, input_state):
+        res = self.model.predict(np.array([input_state])).flatten()
+        return [np.argmax(res[i * self.action_size:(i + 1) * self.action_size]) for i in
+                range(configure.STEP)]
 
     def train(self):
         if len(self.memory) < configure.FIRST_STEP_MEMORY:
@@ -155,11 +153,12 @@ class Agent(object):
 
 
 if __name__ == "__main__":
-    a = Agent("20000brain.h5")
+    a = Agent("200000brain.h5brain.h5")
     env = Env()
-    state = env.get_state()
     for _ in range(3):
-        actions = a.predict_actions(state)
+        env.reset()
+        state = env.get_state()
+        actions = a.predict(state)
         code, done = env.execute(actions)
         env.out()
         print(actions, code)

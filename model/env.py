@@ -1,3 +1,5 @@
+import random
+
 import numpy as np
 
 import configure
@@ -25,6 +27,23 @@ A_DIFF = [(0, 0), (0, 1), (1, 1), (1, 0), (1, -1), (0, -1), (-1, -1), (-1, 0), (
 
 def inbound(x, y, size):
     return 0 <= x < size and 0 <= y < size
+
+
+def get_chebyshev_distance(x, y):
+    return np.max(np.abs(np.array(x) - np.array(y)))
+
+
+def get_nearest_point(pos, plist):
+    min_distance = float('inf')
+    nearest_point = None
+
+    for point in plist:
+        dis = get_chebyshev_distance(point, pos)
+        if dis < min_distance:
+            min_distance = dis
+            nearest_point = point
+
+    return nearest_point
 
 
 class Env(object):
@@ -94,6 +113,51 @@ class Env(object):
     def get_state(self):
         return np.eye(KIND_NUMS, dtype=int)[np.array(self.map.copy(), dtype=int)]
 
+    def get_guidance(self):
+        guidance_actions = []
+        position = self.soldier
+        flags = self.flags.copy()
+
+        flag = get_nearest_point(position, flags)
+        flags.remove(flag)
+        trace = [position]
+
+        while len(guidance_actions) < configure.STEP:
+            while get_chebyshev_distance(flag, position) <= 1:
+                if len(flags) == 0:
+                    guidance_actions.append(STOP)
+                    continue
+                else:
+                    flag = get_nearest_point(position, flags)
+                    flags.remove(flag)
+            ables = []
+            for i in range(len(A_DIFF)):
+                direct = A_DIFF[i]
+                next_position = tuple(np.array(position) + np.array(direct))
+                if inbound(next_position[0], next_position[1], self.size) \
+                        and self.map[next_position] == NORMAL \
+                        and next_position not in trace:
+                    ables.append((i, next_position))
+
+            if len(ables) == 0:
+                guidance_actions.append(STOP)
+                continue
+
+            c_a = STOP
+            c_d = 10000
+            c_p = (10000, 10000)
+            for action, next_position in ables:
+                d = get_chebyshev_distance(next_position, flag)
+                if d < c_d:
+                    c_a = action
+                    c_d = d
+                    c_p = next_position
+            guidance_actions.append(c_a)
+            trace.append(c_p)
+            position = c_p
+
+        return guidance_actions
+
     def random_init(self):
         cells = [(i, j) for i in range(0, self.size) for j in range(0, self.size)]
 
@@ -148,7 +212,9 @@ class Env(object):
 if __name__ == "__main__":
     env = Env()
     env.reset()
-    code, done = env.execute((1, 2, 4, 5, 2, 3, 1, 4, 8, 2))
+    actions = env.get_guidance()
+    print(actions)
+    code, done = env.execute(actions)
     print(env.trace)
     print(code, done)
     state = env.get_state()

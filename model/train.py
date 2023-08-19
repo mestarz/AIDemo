@@ -1,6 +1,7 @@
 import os
 import sys
 
+import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
@@ -39,7 +40,12 @@ class Environment(object):
             self.env.reset()
             state = self.env.get_state()
             for _ in range(configure.ONE_MAP_TRAIN_NUM):
-                actions = brain.predict_actions(state)
+
+                if np.random.rand() < brain.epsilon:
+                    actions = self.env.get_guidance()
+                else:
+                    actions = agent.predict(state)
+
                 reward, done = self.env.execute(actions)
                 brain.observe(state, actions, reward)
                 if current_episode % self.steps_b_updates == 0:
@@ -47,6 +53,7 @@ class Environment(object):
 
                 brain.update_target_model()
                 current_episode += 1
+                agent.decay_epsilon()
 
                 pbar.update(1)
                 print("Episode {p}, Score: {s}".format(p=current_episode, s=reward))
@@ -55,7 +62,7 @@ class Environment(object):
                 if current_episode % 1000 == 0:
                     df = pd.DataFrame(rewards_list, columns=['score'])
                     df.to_csv(reward_file)
-                if current_episode % 5000 == 0:
+                if current_episode % 20000 == 0:
                     brain.save_model(str(current_episode))
 
 
