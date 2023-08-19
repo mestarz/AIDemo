@@ -88,7 +88,7 @@ class Agent(object):
         model.add(Dense(units=4096, activation='relu'))
         model.add(Dense(units=4096, activation='relu'))
         model.add(Dense(units=1024, activation='relu'))
-        model.add(Dense(units=configure.STEP * self.action_size, activation='linear'))
+        model.add(Dense(units=self.action_size, activation='linear'))
 
         opter = optimizers.rmsprop_v2.RMSprop(learning_rate=configure.LEARNING_RATE)
         # opter = optimizers.adam_v2.Adam(learning_rate=configure.LEARNING_RATE)
@@ -98,6 +98,7 @@ class Agent(object):
                 print('Error:no file')
             else:
                 model.load_weights(self.weight_backup)
+                print("Load weight file")
 
         return model
 
@@ -109,10 +110,9 @@ class Agent(object):
 
     def predict_actions(self, input_state):
         if np.random.rand() < self.epsilon:
-            return [random.randint(0, 8) for _ in range(configure.STEP)]
+            return random.randint(0, self.action_size - 1)
         else:
-            res = self.model.predict(input_state).flatten()
-            return [np.argmax(res[i * self.action_size:(i + 1) * self.action_size]) for i in range(configure.STEP)]
+            return np.argmax(self.model.predict(np.array([input_state])).flatten())
 
     def decay_epsilon(self):
         # slowly decrease Epsilon based on our experience
@@ -130,8 +130,8 @@ class Agent(object):
             else:
                 self.epsilon = MIN_EPSILON
 
-    def observe(self, current_state, action, reward):
-        self.memory.append((current_state, action, reward))
+    def observe(self, current_state, action, reward, next_state, done_):
+        self.memory.append((current_state, action, reward, next_state, done_))
 
     def train(self):
         if len(self.memory) < configure.FIRST_STEP_MEMORY:
@@ -139,13 +139,19 @@ class Agent(object):
 
         samples = random.sample(self.memory, self.batch_size)
         current_input = np.stack([sample[0] for sample in samples])
-        current_q_value = self.model.predict(current_input)
+        current_q_values = self.model.predict(current_input)
+        next_input = np.stack([sample[3] for sample in samples])
+        next_q_values = self.target_model.predict(next_input)
 
-        for i, (current_state, action, reward) in enumerate(samples):
-            out_action = [i * self.action_size + act for i, act in enumerate(action)]
-            current_q_value[i, out_action] = reward
+        for i, (current_state, action, reward, _, done_) in enumerate(samples):
+            if done_:
+                next_q_value = reward
+            else:
+                next_q_value = reward + self.gamma * np.max(next_q_values[i])
+            current_q_values[i, action] = next_q_value
 
-        hist = self.model.fit(current_input, current_q_value, batch_size=configure.BATCH_SIZE, verbose=0, shuffle=False)
+        hist = self.model.fit(current_input, current_q_values, batch_size=configure.BATCH_SIZE, verbose=0,
+                              shuffle=False)
         loss = hist.history['loss'][0]
         return loss
 
@@ -155,7 +161,7 @@ class Agent(object):
 
 
 if __name__ == "__main__":
-    a = Agent("20000brain.h5")
+    a = Agent("brain.h5")
     env = Env()
     state = env.get_state()
     for _ in range(3):

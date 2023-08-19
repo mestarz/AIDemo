@@ -13,12 +13,13 @@ DOWN_LEFT = 6
 LEFT = 7
 LEFT_UP = 8
 
-KIND_NUMS = 4
+KIND_NUMS = 5
 # Kind
 NORMAL = 0
 BARRIER = 1
 SOLIDER = 2
 FLAG = 3
+TRACE = 4
 
 A_DIFF = [(0, 0), (0, 1), (1, 1), (1, 0), (1, -1), (0, -1), (-1, -1), (-1, 0), (-1, 1)]
 
@@ -51,6 +52,32 @@ class Env(object):
     def seed_reset(self):
         self.seed_init(self.seed)
         self.update()
+
+    def step(self, action):
+        if action == 0:  # STOP
+            return -10, self.get_state()
+
+        new_position = tuple(np.array(A_DIFF[action]) + np.array(self.soldier))
+        if not inbound(new_position[0], new_position[1], self.size):
+            return -100, self.get_state()
+        elif self.map[new_position] == TRACE:
+            return -100, self.get_state()
+        elif self.map[new_position] == BARRIER:
+            return -100, self.get_state()
+        elif self.map[new_position] == FLAG:
+            return -100, self.get_state()
+        else:
+            self.trace.append(self.soldier)
+            self.soldier = new_position
+            self.map[self.soldier] = TRACE
+
+            count = 0
+            for f in self.flags:
+                if max(abs(f - np.array(new_position))) <= 1:
+                    count += 1
+                    self.flags.remove(f)
+
+            return 1 + count * 500, self.get_state()
 
     def execute(self, action):
         trace = []
@@ -148,9 +175,13 @@ class Env(object):
 if __name__ == "__main__":
     env = Env()
     env.reset()
-    code, done = env.execute((1, 2, 4, 5, 2, 3, 1, 4, 8, 2))
+    steps = (1, 2, 4, 5, 2, 3, 1, 4, 8, 2)
+    codes = []
+    for s in steps:
+        code = env.step(s)
+        codes.append(code)
     print(env.trace)
-    print(code, done)
+    print(codes)
     state = env.get_state()
     print(state)
     env.out()

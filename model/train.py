@@ -35,22 +35,27 @@ class Environment(object):
         current_episode = 0
         pbar = tqdm(initial=current_episode, total=self.episodes_number, unit='episodes')
         while current_episode < self.episodes_number:
-
             self.env.reset()
-            state = self.env.get_state()
-            for _ in range(configure.ONE_MAP_TRAIN_NUM):
-                actions = brain.predict_actions(state)
-                reward, done = self.env.execute(actions)
-                brain.observe(state, actions, reward)
-                if current_episode % self.steps_b_updates == 0:
-                    brain.train()
 
+            for _ in range(configure.ONE_MAP_TRAIN_NUM):
+                self.env.seed_reset()
+                all_reward = 0
+                state = self.env.get_state()
+
+                for i in range(configure.STEP):
+                    action = brain.predict_actions(state)
+                    reward, next_state = self.env.step(action)
+                    brain.observe(state, action, reward, next_state, i == configure.STEP - 1)
+                    all_reward += reward
+
+                brain.train()
                 brain.update_target_model()
                 current_episode += 1
+                brain.decay_epsilon()
 
                 pbar.update(1)
-                print("Episode {p}, Score: {s}".format(p=current_episode, s=reward))
-                rewards_list.append(reward)
+                print("Episode {p}, Score: {s}".format(p=current_episode, s=all_reward))
+                rewards_list.append(all_reward)
 
                 if current_episode % 1000 == 0:
                     df = pd.DataFrame(rewards_list, columns=['score'])
