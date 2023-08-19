@@ -4,13 +4,20 @@ Created on Wednesday Jan  16 2019
 @author: Seyed Mohammad Asghari
 @github: https://github.com/s3yyy3d-m
 """
+from collections import deque
+
+import random
+import os
 
 import numpy as np
-import random
+import tensorflow as tf
+from keras import backend as K
+from keras.models import Sequential
+from keras.layers import Dense, Input, Conv2D, MaxPooling2D, Flatten
+from keras import optimizers
 
 import configure
-from brain import Brain
-from memory.memory import Memory
+from model.env import A_DIFF, KIND_NUMS, Env
 
 MAX_EPSILON = 1.0
 MIN_EPSILON = 0.01
@@ -18,73 +25,94 @@ MIN_EPSILON = 0.01
 MIN_BETA = 0.4
 MAX_BETA = 1.0
 
+HUBER_LOSS_DELTA = 2.0
+
+
+@tf.function
+def huber_loss(y_true, y_predict):
+    err = y_true - y_predict
+
+    cond = K.abs(err) < HUBER_LOSS_DELTA
+    L2 = 0.5 * K.square(err)
+    L1 = HUBER_LOSS_DELTA * (K.abs(err) - 0.5 * HUBER_LOSS_DELTA)
+    loss = tf.where(cond, L2, L1)
+
+    return K.mean(loss)
+
 
 class Agent(object):
     epsilon = MAX_EPSILON
     beta = MIN_BETA
 
-    def __init__(self, state_size, action_size, brain_name, test=False):
-        self.state_size = state_size
-        self.action_size = action_size
+    def __init__(self, weight_file=None, test=False):
+        self.test = test
+        self.action_size = len(A_DIFF)
         self.learning_rate = configure.LEARNING_RATE
-        self.gamma = 0.95
-        self.brain = Brain(self.state_size, self.action_size, brain_name, test)
-        self.memory = Memory(configure.MEMORY_CAPACITY)
         self.update_target_frequency = configure.TARGET_FREQUENCY
+        self.gamma = 0.95
+
+        self.memory = deque(maxlen=configure.MEMORY_CAPACITY)
         self.max_exploration_step = configure.MAXIMUM_EXPLORATION
         self.batch_size = configure.BATCH_SIZE
+
+        self.weight_backup = weight_file
+
+        self.model = self._build_model_cnn()
+        self.target_model = self._build_model_cnn()
         self.step = 0
-        self.test = test
         if self.test:
             self.epsilon = MIN_EPSILON
 
-    def greedy_actor(self, state):
-        # 屏蔽掉无效移动
-        res = self.brain.predict_one_sample(state)
-        actions = [np.argmax(res[i:i + 5]) for i in [0, 9, 18, 27, 36]]
+    def _build_model_cnn(self):
+        model = Sequential()
+        model.add(Input(shape=(configure.GRID_SIZE, configure.GRID_SIZE, KIND_NUMS)))
+        model.add(Conv2D(filters=64, kernel_size=3, activation='relu', padding='same'))
+        model.add(Conv2D(filters=64, kernel_size=3, activation='relu', padding='same'))
+        model.add(MaxPooling2D(pool_size=2, padding='same'))
+        model.add(Conv2D(filters=128, kernel_size=3, activation='relu', padding='same'))
+        model.add(Conv2D(filters=128, kernel_size=3, activation='relu', padding='same'))
+        model.add(MaxPooling2D(pool_size=2, padding='same'))
+        model.add(Conv2D(filters=256, kernel_size=3, activation='relu', padding='same'))
+        model.add(Conv2D(filters=256, kernel_size=3, activation='relu', padding='same'))
+        model.add(Conv2D(filters=256, kernel_size=3, activation='relu', padding='same'))
+        model.add(MaxPooling2D(pool_size=2, padding='same'))
+        model.add(Conv2D(filters=512, kernel_size=3, activation='relu', padding='same'))
+        model.add(Conv2D(filters=512, kernel_size=3, activation='relu', padding='same'))
+        model.add(Conv2D(filters=512, kernel_size=3, activation='relu', padding='same'))
+        model.add(MaxPooling2D(pool_size=2))
+        model.add(Conv2D(filters=512, kernel_size=3, activation='relu', padding='same'))
+        model.add(Conv2D(filters=512, kernel_size=3, activation='relu', padding='same'))
+        model.add(Conv2D(filters=512, kernel_size=3, activation='relu', padding='same'))
+        model.add(MaxPooling2D(pool_size=2, padding='same'))
+        model.add(Flatten())
+        model.add(Dense(units=4096, activation='relu'))
+        model.add(Dense(units=4096, activation='relu'))
+        model.add(Dense(units=1024, activation='relu'))
+        model.add(Dense(units=configure.STEP * self.action_size, activation='linear'))
 
-        if np.random.rand() < self.epsilon:
-            for i in range(len(actions)):
-                actions[i] = random.randint(0, 8)
-
-        return actions
-
-    def find_targets_uer(self, batch):
-        batch_len = len(batch)
-
-        states = np.array([o[0] for o in batch])
-        states_ = np.array([o[3] for o in batch])
-
-        p = self.brain.predict(states)
-        p_target_ = self.brain.predict(states_, target=True)
-
-        x = np.zeros((batch_len, configure.GRID_SIZE, configure.GRID_SIZE, configure.STEP))
-        y = np.zeros((batch_len, self.action_size * configure.STEP))
-        errors = np.zeros((batch_len, configure.STEP))
-
-        for i in range(batch_len):
-            o = batch[i]
-            s = o[0]
-            a = o[1]
-            r = o[2]
-            done = o[4]
-
-            t = p[i]
-            old_value = t[a]
-            if done:
-                t[a] = r
+        opter = optimizers.rmsprop_v2.RMSprop(learning_rate=configure.LEARNING_RATE)
+        # opter = optimizers.adam_v2.Adam(learning_rate=configure.LEARNING_RATE)
+        model.compile(loss='mse', optimizer=opter)
+        if self.test:
+            if not os.path.isfile(self.weight_backup):
+                print('Error:no file')
             else:
-                t[a] = r + self.gamma * np.amax(p_target_[i])
+                model.load_weights(self.weight_backup)
 
-            x[i] = s
-            y[i] = t
-            for idx in range(configure.STEP):
-                errors[i][idx] = np.abs(t[a][idx] - old_value[idx])
+        return model
 
-        return [x, y]
+    def _build_mode_rnn(self):
+        pass
 
-    def observe(self, sample):
-        self.memory.remember(sample)
+    def save_model(self, prefix):
+        self.model.save(prefix + self.weight_backup)
+
+    def predict_actions(self, input_state):
+        if np.random.rand() < self.epsilon:
+            return [random.randint(0, 8) for _ in range(configure.STEP)]
+        else:
+            res = self.model.predict(input_state).flatten()
+            return [np.argmax(res[i * self.action_size:(i + 1) * self.action_size]) for i in range(configure.STEP)]
 
     def decay_epsilon(self):
         # slowly decrease Epsilon based on our experience
@@ -102,11 +130,38 @@ class Agent(object):
             else:
                 self.epsilon = MIN_EPSILON
 
-    def replay(self):
-        batch = self.memory.sample(self.batch_size)
-        x, y = self.find_targets_uer(batch)
-        self.brain.train(x, y)
+    def observe(self, current_state, action, reward):
+        self.memory.append((current_state, action, reward))
+
+    def train(self):
+        if len(self.memory) < configure.FIRST_STEP_MEMORY:
+            return
+
+        samples = random.sample(self.memory, self.batch_size)
+        current_input = np.stack([sample[0] for sample in samples])
+        current_q_value = self.model.predict(current_input)
+
+        for i, (current_state, action, reward) in enumerate(samples):
+            out_action = [i * self.action_size + act for i, act in enumerate(action)]
+            current_q_value[i, out_action] = reward
+
+        hist = self.model.fit(current_input, current_q_value, batch_size=configure.BATCH_SIZE, verbose=0, shuffle=False)
+        loss = hist.history['loss'][0]
+        return loss
 
     def update_target_model(self):
         if self.step % self.update_target_frequency == 0:
-            self.brain.update_target_model()
+            self.target_model.set_weights(self.model.get_weights())
+
+
+if __name__ == "__main__":
+    a = Agent("20000brain.h5")
+    env = Env()
+    state = env.get_state()
+    for _ in range(3):
+        actions = a.predict_actions(state)
+        code, done = env.execute(actions)
+        env.out()
+        print(actions, code)
+
+    # a.train()
