@@ -1,6 +1,8 @@
 import os
 import sys
+import random
 
+import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
@@ -43,9 +45,18 @@ class Environment(object):
                 state = self.env.get_state()
 
                 for i in range(configure.STEP):
-                    action = brain.predict_actions(state)
+
+                    if np.random.rand() < brain.epsilon:
+                        if np.random.rand() < 0.8:
+                            action = random.randint(0, brain.action_size - 1)
+                        else:
+                            action = random.randint(0, brain.action_size - 1)
+
+                    else:
+                        action = np.argmax(brain.model.predict(np.array([state])).flatten())
                     reward, next_state = self.env.step(action)
                     brain.observe(state, action, reward, next_state, i == configure.STEP - 1)
+                    state = next_state
                     all_reward += reward
 
                 brain.train()
@@ -75,7 +86,7 @@ if __name__ == "__main__":
     action_space = env.env.action_space
 
     brain_file = get_name_brain()
-    agent = Agent(weight_file="brain.h5")
+    agent = Agent(weight_file="brain_one_step.h5")
     rewards_file = get_name_rewards()
 
     env.run(agent, rewards_file)
