@@ -48,7 +48,6 @@ class Agent(object):
         self.test = test
         self.action_size = len(A_DIFF)
         self.learning_rate = configure.LEARNING_RATE
-        self.update_target_frequency = configure.TARGET_FREQUENCY
         self.gamma = 0.95
 
         self.memory = deque(maxlen=configure.MEMORY_CAPACITY)
@@ -58,7 +57,6 @@ class Agent(object):
         self.weight_backup = weight_file
 
         self.model = self._build_model_cnn()
-        self.target_model = self._build_model_cnn()
         self.step = 0
         if self.test:
             self.epsilon = MIN_EPSILON
@@ -80,14 +78,15 @@ class Agent(object):
         model.add(Conv2D(filters=512, kernel_size=3, activation='relu', padding='same'))
         model.add(Conv2D(filters=512, kernel_size=3, activation='relu', padding='same'))
         model.add(MaxPooling2D(pool_size=2))
-        model.add(Conv2D(filters=512, kernel_size=3, activation='relu', padding='same'))
-        model.add(Conv2D(filters=512, kernel_size=3, activation='relu', padding='same'))
-        model.add(Conv2D(filters=512, kernel_size=3, activation='relu', padding='same'))
+        model.add(Conv2D(filters=1024, kernel_size=3, activation='relu', padding='same'))
+        model.add(Conv2D(filters=1024, kernel_size=3, activation='relu', padding='same'))
+        model.add(Conv2D(filters=1024, kernel_size=3, activation='relu', padding='same'))
         model.add(MaxPooling2D(pool_size=2, padding='same'))
         model.add(Flatten())
         model.add(Dense(units=4096, activation='relu'))
         model.add(Dense(units=4096, activation='relu'))
-        model.add(Dense(units=1024, activation='relu'))
+        model.add(Dense(units=4096, activation='relu'))
+        model.add(Dense(units=4096, activation='relu'))
         model.add(Dense(units=configure.STEP * self.action_size, activation='linear'))
 
         opter = optimizers.rmsprop_v2.RMSprop(learning_rate=configure.LEARNING_RATE)
@@ -147,13 +146,9 @@ class Agent(object):
         loss = hist.history['loss'][0]
         return loss
 
-    def update_target_model(self):
-        if self.step % self.update_target_frequency == 0:
-            self.target_model.set_weights(self.model.get_weights())
-
 
 if __name__ == "__main__":
-    a = Agent("200000brain.h5brain.h5")
+    a = Agent("brain.h5brain.h5")
     env = Env()
     for _ in range(3):
         env.reset()

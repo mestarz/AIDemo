@@ -1,4 +1,5 @@
 import os
+import random
 import sys
 
 import numpy as np
@@ -42,7 +43,10 @@ class Environment(object):
             for _ in range(configure.ONE_MAP_TRAIN_NUM):
 
                 if np.random.rand() < brain.epsilon:
-                    actions = self.env.get_guidance()
+                    if np.random.rand() < 0.8:
+                        actions = self.env.get_guidance()
+                    else:
+                        actions = [random.randint(0, brain.action_size - 1) for _ in range(configure.STEP)]
                 else:
                     actions = agent.predict(state)
 
@@ -51,7 +55,6 @@ class Environment(object):
                 if current_episode % self.steps_b_updates == 0:
                     brain.train()
 
-                brain.update_target_model()
                 current_episode += 1
                 agent.decay_epsilon()
 
@@ -62,7 +65,7 @@ class Environment(object):
                 if current_episode % 1000 == 0:
                     df = pd.DataFrame(rewards_list, columns=['score'])
                     df.to_csv(reward_file)
-                if current_episode % 20000 == 0:
+                if current_episode % 200000 == 0:
                     brain.save_model(str(current_episode))
 
 

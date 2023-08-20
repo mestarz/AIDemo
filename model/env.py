@@ -73,30 +73,30 @@ class Env(object):
 
     def execute(self, action):
         trace = []
-        code = 0
+        rcode = 0
         position = np.array(self.soldier)
         trace.append(tuple(position))
         for a in action:
             if a == 0:  # STOP
-                code -= 10
+                rcode -= 10
                 continue
-            new_position = tuple(np.array(A_DIFF[a]) + position)
+            new_position = tuple(np.array(A_DIFF[a]) + np.array(position))
             if not inbound(new_position[0], new_position[1], self.size):
-                code -= 100
+                rcode -= 100
                 continue
             elif new_position in trace:
-                code -= 10
+                rcode -= 10
                 continue
             elif self.map[new_position] == NORMAL:
                 trace.append(new_position)
-                code += 1
+                rcode += 1
                 position = new_position
                 continue
             elif self.map[new_position] == BARRIER:
-                code -= 100
+                rcode -= 100
                 continue
             elif self.map[new_position] == FLAG:
-                code -= 10
+                rcode -= 10
                 continue
 
         self.trace = trace
@@ -108,7 +108,7 @@ class Env(object):
                     count += 1
                     break
 
-        return code + count * 500, count == self.flags
+        return rcode + count * 500, count == self.flags
 
     def get_state(self):
         return np.eye(KIND_NUMS, dtype=int)[np.array(self.map.copy(), dtype=int)]
