@@ -48,12 +48,12 @@ class Environment(object):
 
                     if np.random.rand() < brain.epsilon:
                         if np.random.rand() < 0.8:
-                            action = random.randint(0, brain.action_size - 1)
+                            action = self.env.get_guidance()[0]
                         else:
                             action = random.randint(0, brain.action_size - 1)
-
                     else:
                         action = np.argmax(brain.model.predict(np.array([state])).flatten())
+
                     reward, next_state = self.env.step(action)
                     brain.observe(state, action, reward, next_state, i == configure.STEP - 1)
                     state = next_state
