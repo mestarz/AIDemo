@@ -33,6 +33,9 @@ def get_chebyshev_distance(x, y):
 
 
 def get_nearest_point(pos, plist):
+    if len(plist) == 0:
+        return None
+
     min_distance = float('inf')
     nearest_point = None
 
@@ -51,7 +54,7 @@ class Env(object):
         self.seed = None
         self.size = configure.GRID_SIZE
         self.map = np.zeros((self.size, self.size), dtype=int)
-        self.max_barrier = int(self.size * self.size * 0.2)
+        self.max_barrier = int(self.size * self.size * 0.1)
         self.flag_nums = configure.FLAG_NUMS
         self.action_space = len(A_DIFF)
 
@@ -145,6 +148,8 @@ class Env(object):
         flags = self.flags.copy()
 
         flag = get_nearest_point(position, flags)
+        if flag is None:
+            return [0 for _ in range(configure.STEP)]
         flags.remove(flag)
         trace = [position]
 
@@ -155,6 +160,8 @@ class Env(object):
                     continue
                 else:
                     flag = get_nearest_point(position, flags)
+                    if flag is None:
+                        return [0 for _ in range(configure.STEP)]
                     flags.remove(flag)
             ables = []
             for i in range(len(A_DIFF)):

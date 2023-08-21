@@ -46,6 +46,9 @@ class Environment(object):
 
                 for i in range(configure.STEP):
 
+                    if len(self.env.flags) == 0:
+                        break
+
                     if np.random.rand() < brain.epsilon:
                         if np.random.rand() < 0.8:
                             action = self.env.get_guidance()[0]
@@ -60,6 +63,7 @@ class Environment(object):
                     all_reward += reward
 
                 brain.train()
+
                 brain.update_target_model()
                 current_episode += 1
                 brain.decay_epsilon()

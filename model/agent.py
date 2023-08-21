@@ -143,12 +143,12 @@ class Agent(object):
         next_input = np.stack([sample[3] for sample in samples])
         next_q_values = self.target_model.predict(next_input)
 
-        for i, (current_state, action, reward, _, done_) in enumerate(samples):
+        for i, (current_state, m_action, reward, _, done_) in enumerate(samples):
             if done_:
                 next_q_value = reward
             else:
                 next_q_value = reward + self.gamma * np.max(next_q_values[i])
-            current_q_values[i, action] = next_q_value
+            current_q_values[i, m_action] = next_q_value
 
         hist = self.model.fit(current_input, current_q_values, batch_size=configure.BATCH_SIZE, verbose=0,
                               shuffle=False)
@@ -161,13 +161,19 @@ class Agent(object):
 
 
 if __name__ == "__main__":
-    a = Agent("brain.h5")
+    a = Agent("100000brain_one_step.h5")
     env = Env()
     state = env.get_state()
-    for _ in range(3):
-        actions = a.predict_actions(state)
-        code, done = env.execute(actions)
-        env.out()
-        print(actions, code)
+    acs = []
+    acode = 0
+    for _ in range(configure.STEP):
+        action = a.predict_actions(state)
+        acs.append(action)
+        code, state = env.step(action)
+        acode += code
+
+    env.out()
+    print(acs)
+    print(acode)
 
     # a.train()
